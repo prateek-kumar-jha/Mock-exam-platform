@@ -1,0 +1,33 @@
+# Environment variables
+.env
+.env.local
+
+# Dependency folders
+node_modules/
+**/node_modules/
+
+# Security / credentials
+*.pem
+*.key
+*.crt
+secrets.yml
+config.yml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+
+# IDE / editor folders
+.idea/
+.vscode/
+
+# Git metadata (just in case)
+.git
+
+# Exclude Claude Code local settings
+.claude/settings.local.json
+**/.claude/settings.local.json
