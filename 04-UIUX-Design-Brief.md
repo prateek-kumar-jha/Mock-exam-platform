@@ -47,12 +47,30 @@
 
 > Both light and dark mode are supported natively in this system (Slate 950/800/700 for dark surfaces) — good fit given many students study/attempt tests late at night. Reserve the golden yellow/amber accent for calls-to-action and highlights (10% usage) so it doesn't compete with blue as the dominant trust color.
 
-## 3. Typography
+## 3. Layout & Component Style — Reference Direction
+
+The visual language for dashboard-style screens (Student Dashboard, Educator content tools, Admin console) should follow a **card-based, soft-rounded, dashboard aesthetic** — think modern e-learning platform, not a dense government-form look. This applies to browsing/dashboard screens; the actual **test-taking screen stays plainer and more exam-standard** per Section 5 below — clarity there beats decoration.
+
+**Structure:**
+- **Icon-only left sidebar** for primary navigation (Dashboard, Tests, Packages, Job Alerts, Profile, Settings) — collapses to icons, no persistent text labels, keeps focus on content
+- **Card-based content grid** for browsable items: exam packages, test series, blog/job-alert posts — each card has a category tag, a title, a small stat line (e.g., "9,530 students" → adapt to "1,240 attempts" or similar), and where relevant an avatar-stack or rating
+- **Top-right profile/activity widget** on the dashboard — shows the student's name, a small activity chart (e.g., tests attempted per month), and quick stats — optional for v1, nice-to-have
+- **Rounded corners throughout** — cards, buttons, input fields all use a consistent generous radius (16–20px), not sharp edges
+- **Soft drop shadows** on cards for depth, not heavy borders
+- **Category tags/pills** on cards use the palette's status colors (Success/Warning/Info/Error) rather than the reference's pastel palette — keep everything within EduSpark Blue & Gold
+
+**What to keep vs. what to leave behind from typical e-learning dashboard references:**
+- Keep: card grid, rounded/soft aesthetic, icon sidebar, clean whitespace, activity/progress visualization
+- Leave out: unrelated social features (friends lists, generic "featured course" carousels) — this platform's cards are exams, packages, and job alerts, not lifestyle courses
+
+
+
+## 4. Typography
 
 - Primary font: a highly legible, neutral sans-serif (e.g., Inter, or a similar system font) — avoid decorative fonts anywhere near the test-taking screen
 - Support for regional language rendering (Hindi/Devanagari and other scripts) if multi-language tests are planned, since many competitive exams are bilingual
 
-## 4. Screen-Specific Guidance
+## 5. Screen-Specific Guidance
 
 ### Test-Taking Screen
 - Question palette clearly color-coded: Answered / Not Answered / Marked for Review / Not Visited — matching the real exam's convention exactly
@@ -68,7 +86,7 @@
 - Scannable list view with structured fields (exam, vacancy count, last date) visible without opening the post
 - Clear "last updated" timestamp on every listing to reinforce trust
 
-## 5. UI Components (system to define)
+## 6. UI Components (system to define)
 - Buttons: Primary, Secondary, Text/Link — consistent states (default, hover, disabled, loading)
 - Input fields: text, OTP, password (with show/hide)
 - Cards: for test series, blog posts, analytics summaries
@@ -76,15 +94,15 @@
 - Progress/sliders: subscription usage, section completion within a test
 - Icons: consistent icon set across navigation (home, tests, analytics, profile, jobs)
 
-## 6. Responsive Design
+## 7. Responsive Design
 - Mobile-first (majority of aspirants access via phone); the test-taking screen must be fully usable on small screens without horizontal scrolling
 - Tablet/desktop layouts can introduce a persistent sidebar for navigation, but the core test-taking layout should remain visually consistent across breakpoints so muscle memory transfers
 
-## 7. Accessibility for Exam Environments
+## 8. Accessibility for Exam Environments
 - Sufficient contrast ratios (WCAG AA) for long reading sessions
 - Text resizing without breaking layout
 - Clear focus states for keyboard/switch navigation
 - Avoid color as the *only* signal (e.g., pair red/green with icons or text, not color alone) for colorblind users, especially in the question palette
 
-## 8. Overall Feel
+## 9. Overall Feel
 Modern, trustworthy, exam-serious, and fast — a student should feel like they're using something built specifically for high-stakes exam prep, not a generic quiz app.
