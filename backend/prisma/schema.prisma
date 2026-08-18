@@ -1,0 +1,49 @@
+// Prisma schema for Exam Platform
+// Run: npx prisma generate && npx prisma migrate dev --name init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  student
+  educator
+  admin
+}
+
+model User {
+  id              String   @id @default(uuid())
+  name            String?
+  email           String   @unique
+  phone           String?  @unique
+  password_hash   String
+  role            Role     @default(student)
+  exam_preferences Json?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  sessions        Session[]
+  refreshTokens   RefreshToken[]
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  user_id      String
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  token_hash   String
+  device_info  String?
+  expires_at   DateTime?
+  created_at   DateTime @default(now())
+}
+
+model RefreshToken {
+  id           String   @id @default(uuid())
+  user_id      String
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  token_hash   String
+  expires_at   DateTime
+  created_at   DateTime @default(now())
+}
