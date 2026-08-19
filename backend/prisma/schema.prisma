@@ -1,5 +1,7 @@
 // Prisma schema for Exam Platform
-// Run: npx prisma generate && npx prisma migrate dev --name init
+// Mirrors docs/05-Database-Schema.md — field names and types come from that
+// doc; do not rename without updating it.
+// Run: npx prisma generate && npx prisma migrate dev
 
 generator client {
   provider = "prisma-client-js"
@@ -9,41 +11,334 @@ datasource db {
   provider = "postgresql"
 }
 
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
 enum Role {
   student
   educator
   admin
 }
 
+/// Packages are archived rather than hard-deleted once they have real
+/// subscribers — see 05-Database-Schema.md section 4.
+enum PackageStatus {
+  draft
+  active
+  archived
+}
+
+enum TestSeriesType {
+  live
+  practice
+  previous_year
+}
+
+enum TestStatus {
+  draft
+  published
+  archived
+}
+
+enum Difficulty {
+  easy
+  medium
+  hard
+}
+
+enum AttemptStatus {
+  in_progress
+  submitted
+  auto_submitted
+}
+
+enum AnswerStatus {
+  answered
+  marked_for_review
+  not_visited
+}
+
+enum PaymentStatus {
+  pending
+  success
+  failed
+  refunded
+}
+
+enum PostCategory {
+  job_alert
+  exam_update
+  study_tip
+}
+
+// ---------------------------------------------------------------------------
+// 1. Core entities
+// ---------------------------------------------------------------------------
+
 model User {
-  id              String   @id @default(uuid())
-  name            String?
-  email           String   @unique
-  phone           String?  @unique
-  password_hash   String
-  role            Role     @default(student)
+  id               String   @id @default(uuid())
+  name             String?
+  email            String   @unique
+  phone            String?  @unique
+  password_hash    String
+  role             Role     @default(student)
   exam_preferences Json?
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
-  sessions        Session[]
-  refreshTokens   RefreshToken[]
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  sessions      Session[]
+  refreshTokens RefreshToken[]
+  packages      Package[]
+  testSeries    TestSeries[]
+  questions     Question[]
+  attempts      Attempt[]
+  payments      Payment[]
+  subscriptions Subscription[]
+  posts         Post[]
+  notifications Notification[]
 }
 
 model Session {
-  id           String   @id @default(uuid())
-  user_id      String
-  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  token_hash   String
-  device_info  String?
-  expires_at   DateTime?
-  created_at   DateTime @default(now())
+  id          String    @id @default(uuid())
+  user_id     String
+  user        User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  token_hash  String
+  device_info String?
+  expires_at  DateTime?
+  created_at  DateTime  @default(now())
 }
 
 model RefreshToken {
-  id           String   @id @default(uuid())
+  id         String   @id @default(uuid())
+  user_id    String
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  token_hash String
+  expires_at DateTime
+  created_at DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// 2. Exam catalog & content
+// ---------------------------------------------------------------------------
+
+model Exam {
+  id          String   @id @default(uuid())
+  name        String
+  category    String
+  description String?
+  created_at  DateTime @default(now())
+
+  packageExams PackageExam[]
+  testSeries   TestSeries[]
+}
+
+model Package {
+  id          String        @id @default(uuid())
+  title       String
+  description String?
+  price       Decimal       @db.Decimal(10, 2)
+  status      PackageStatus @default(draft)
+  created_by  String
+  creator     User          @relation(fields: [created_by], references: [id])
+  created_at  DateTime      @default(now())
+  updated_at  DateTime      @updatedAt
+
+  packageExams  PackageExam[]
+  subscriptions Subscription[]
+}
+
+model PackageExam {
+  id         String   @id @default(uuid())
+  package_id String
+  package    Package  @relation(fields: [package_id], references: [id], onDelete: Cascade)
+  exam_id    String
+  exam       Exam     @relation(fields: [exam_id], references: [id], onDelete: Cascade)
+  added_at   DateTime @default(now())
+
+  @@unique([package_id, exam_id])
+}
+
+model TestSeries {
+  id         String         @id @default(uuid())
+  exam_id    String
+  exam       Exam           @relation(fields: [exam_id], references: [id])
+  title      String
+  type       TestSeriesType
+  /// Null when the series is free.
+  price      Decimal?       @db.Decimal(10, 2)
+  created_by String
+  creator    User           @relation(fields: [created_by], references: [id])
+  created_at DateTime       @default(now())
+
+  tests         Test[]
+  subscriptions Subscription[]
+}
+
+model Test {
+  id               String     @id @default(uuid())
+  test_series_id   String
+  testSeries       TestSeries @relation(fields: [test_series_id], references: [id], onDelete: Cascade)
+  title            String
+  duration_minutes Int
+  /// Correct/incorrect/unattempted marks per question type.
+  marking_scheme   Json
+  /// Null for practice tests.
+  scheduled_start  DateTime?
+  scheduled_end    DateTime?
+  status           TestStatus @default(draft)
+
+  testQuestions TestQuestion[]
+  attempts      Attempt[]
+}
+
+model Question {
+  id             String     @id @default(uuid())
+  subject        String
+  topic          String
+  difficulty     Difficulty
+  question_text  String
+  /// Array of option text/labels.
+  options        Json
+  correct_option String
+  explanation    String?
+  created_by     String
+  creator        User       @relation(fields: [created_by], references: [id])
+  created_at     DateTime   @default(now())
+
+  testQuestions  TestQuestion[]
+  attemptAnswers AttemptAnswer[]
+
+  @@index([subject, topic, difficulty])
+}
+
+model TestQuestion {
+  id             String   @id @default(uuid())
+  test_id        String
+  test           Test     @relation(fields: [test_id], references: [id], onDelete: Cascade)
+  question_id    String
+  question       Question @relation(fields: [question_id], references: [id])
+  sequence_order Int
+  section        String?
+
+  @@unique([test_id, question_id])
+}
+
+// ---------------------------------------------------------------------------
+// 3. Attempts & scoring
+// ---------------------------------------------------------------------------
+
+model Attempt {
+  id           String        @id @default(uuid())
+  test_id      String
+  test         Test          @relation(fields: [test_id], references: [id])
   user_id      String
-  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  token_hash   String
-  expires_at   DateTime
-  created_at   DateTime @default(now())
+  user         User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  /// Server-recorded; never trust a client-submitted timestamp.
+  started_at   DateTime      @default(now())
+  /// Null until submit/auto-submit.
+  submitted_at DateTime?
+  status       AttemptStatus @default(in_progress)
+  /// Computed server-side only, on submit.
+  total_score  Decimal?      @db.Decimal(10, 2)
+  /// Computed after the test's global end time.
+  percentile   Decimal?      @db.Decimal(5, 2)
+
+  answers AttemptAnswer[]
+
+  @@index([test_id, user_id])
+}
+
+model AttemptAnswer {
+  id                 String       @id @default(uuid())
+  attempt_id         String
+  attempt            Attempt      @relation(fields: [attempt_id], references: [id], onDelete: Cascade)
+  question_id        String
+  question           Question     @relation(fields: [question_id], references: [id])
+  /// Null when unattempted.
+  selected_option    String?
+  status             AnswerStatus @default(not_visited)
+  time_spent_seconds Int          @default(0)
+  /// Last auto-save timestamp.
+  updated_at         DateTime     @updatedAt
+
+  @@unique([attempt_id, question_id])
+}
+
+// ---------------------------------------------------------------------------
+// 4. Payments & subscriptions
+// ---------------------------------------------------------------------------
+
+model Payment {
+  id                   String        @id @default(uuid())
+  user_id              String
+  user                 User          @relation(fields: [user_id], references: [id])
+  /// Server-verified against the gateway, never client-supplied.
+  amount               Decimal       @db.Decimal(10, 2)
+  currency             String
+  status               PaymentStatus @default(pending)
+  payment_method       String?
+  /// Reconciliation key from the payment gateway webhook.
+  gateway_reference_id String?       @unique
+  created_at           DateTime      @default(now())
+
+  subscriptions Subscription[]
+}
+
+/// Access is resolved through this row rather than by re-checking PackageExam
+/// live, so archiving a package or removing an exam from it never revokes what
+/// an existing subscriber already bought.
+model Subscription {
+  id             String      @id @default(uuid())
+  user_id        String
+  user           User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  /// Set when purchasing a single test series directly.
+  test_series_id String?
+  testSeries     TestSeries? @relation(fields: [test_series_id], references: [id])
+  /// Set when purchasing a package.
+  package_id     String?
+  package        Package?    @relation(fields: [package_id], references: [id])
+  plan_type      String
+  starts_at      DateTime
+  expires_at     DateTime
+  payment_id     String?
+  payment        Payment?    @relation(fields: [payment_id], references: [id])
+}
+
+// ---------------------------------------------------------------------------
+// 5. Blogs / job alerts
+// ---------------------------------------------------------------------------
+
+model Post {
+  id               String       @id @default(uuid())
+  author_id        String
+  author           User         @relation(fields: [author_id], references: [id])
+  title            String
+  body             String
+  category         PostCategory
+  /// Structured field for job alerts.
+  exam_name        String?
+  organization     String?
+  vacancy_count    Int?
+  /// e.g. {"apply_start":..., "apply_end":..., "exam_date":...}
+  important_dates  Json?
+  application_link String?
+  /// Null until published.
+  published_at     DateTime?
+
+  @@index([exam_name, category])
+}
+
+// ---------------------------------------------------------------------------
+// 6. Notifications
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id         String   @id @default(uuid())
+  user_id    String
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  title      String
+  message    String
+  is_read    Boolean  @default(false)
+  created_at DateTime @default(now())
 }

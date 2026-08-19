@@ -201,24 +201,7 @@
 
 ---
 
-## 6. Study Resources
-
-### RESOURCES
-| Column | Type | Notes |
-|--------|------|-------|
-| id (PK) | UUID | |
-| exam_id (FK → EXAMS) | UUID | |
-| subject | VARCHAR | |
-| topic | VARCHAR | |
-| title | VARCHAR | |
-| file_url | VARCHAR | object storage URL, never a local app-server path |
-| file_type | VARCHAR | pdf / video / doc |
-| access_tier | ENUM | free / paid |
-| created_at | TIMESTAMP | |
-
----
-
-## 7. Notifications
+## 6. Notifications
 
 ### NOTIFICATIONS
 | Column | Type | Notes |
@@ -232,7 +215,7 @@
 
 ---
 
-## 8. Key Design Notes
+## 7. Key Design Notes
 
 - **Structured & scalable**: JSONB fields (marking_scheme, exam_preferences, important_dates) allow flexible metadata without constant schema migrations
 - **Fast queries**: index on (test_id, user_id) in ATTEMPTS, (exam_id, category) in POSTS, and (subject, topic, difficulty) in QUESTIONS for analytics/filtering
