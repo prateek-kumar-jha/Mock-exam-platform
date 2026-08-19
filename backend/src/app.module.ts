@@ -38,6 +38,16 @@ import { AttemptsModule } from './attempts/attempts.module';
                   : `account-anon:${req.ip ?? 'unknown'}`;
               },
             },
+            {
+              // Authenticated app traffic. Auto-save fires on every answer and
+              // navigation change, so an auth-strict cap would lock a student
+              // out mid-exam. Still bounded, just far looser.
+              name: 'session',
+              ttl: windowMs,
+              limit: Number(
+                config.get<string>('RATE_LIMIT_SESSION_MAX') ?? 600,
+              ),
+            },
           ],
         };
       },
