@@ -86,11 +86,11 @@ async function postAuth<T extends object>(
 }
 
 export function signup(payload: SignupPayload): Promise<AuthTokens> {
-  return postAuth("/auth/signup", payload);
+  return postAuth("/api/v1/auth/signup", payload);
 }
 
 export function login(payload: LoginPayload): Promise<AuthTokens> {
-  return postAuth("/auth/login", payload);
+  return postAuth("/api/v1/auth/login", payload);
 }
 
 export function storeTokens(tokens: AuthTokens): void {

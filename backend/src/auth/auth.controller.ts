@@ -18,7 +18,8 @@ import { RolesGuard } from './guards/roles.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthThrottlerGuard } from '../common/auth-throttler.guard';
 
-@Controller('auth')
+// Versioned per 06-Implementation-Roadmap.md — matches the catalog routes.
+@Controller('api/v1/auth')
 @UseGuards(AuthThrottlerGuard)
 export class AuthController {
   constructor(
