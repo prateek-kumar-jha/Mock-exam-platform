@@ -1,26 +1,80 @@
 @import "tailwindcss";
 
+/* EduSpark Blue & Gold — see 04-UIUX-Design-Brief.md section 2.
+   Usage ratio: Blue 60% · White/Light Gray 25% · Yellow 10% · Status 5%. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc; /* Cool White */
+  --foreground: #0f172a; /* Slate 900 */
+  --card: #ffffff;
+  --surface: #f1f5f9; /* Soft Gray */
+  --border: #e2e8f0; /* Light Slate */
+
+  --primary: #2563eb; /* Royal Blue */
+  --primary-hover: #1d4ed8; /* Deep Blue */
+  --secondary: #4f46e5; /* Indigo */
+  --secondary-hover: #4338ca; /* Deep Indigo */
+
+  --accent: #fbbf24; /* Soft Golden Yellow */
+  --accent-hover: #f59e0b; /* Golden Amber */
+
+  --success: #10b981; /* Emerald Green */
+  --warning: #f59e0b; /* Amber */
+  --error: #ef4444; /* Rose Red */
+  --info: #0ea5e9; /* Sky Blue */
+
+  --text-secondary: #475569; /* Slate 600 */
+  --placeholder: #94a3b8; /* Slate 400 */
+  --disabled: #cbd5e1; /* Slate 300 */
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-surface: var(--surface);
+  --color-border-subtle: var(--border);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-secondary: var(--secondary);
+  --color-secondary-hover: var(--secondary-hover);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --color-info: var(--info);
+
+  --color-text-secondary: var(--text-secondary);
+  --color-placeholder: var(--placeholder);
+  --color-disabled: var(--disabled);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Generous radius per the brief's soft-rounded direction (16–20px). */
+  --radius-card: 20px;
+  --radius-field: 12px;
 }
 
+/* Dark mode uses the brief's Slate 950/800/700 surfaces — many students
+   study late at night. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0f172a; /* Slate 950 */
+    --foreground: #f8fafc;
+    --card: #1e293b; /* Slate 800 */
+    --surface: #334155; /* Slate 700 */
+    --border: #475569; /* Slate */
+    --text-secondary: #cbd5e1;
+    --placeholder: #94a3b8;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
