@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { BullModule } from '@nestjs/bullmq';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -51,6 +52,36 @@ import { AttemptsModule } from './attempts/attempts.module';
           ],
         };
       },
+    }),
+    // Shared Redis connection for all BullMQ queues.
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        connection: {
+          host: config.get<string>('REDIS_HOST') ?? 'localhost',
+          port: Number(config.get<string>('REDIS_PORT') ?? 6379),
+
+          // Fail fast and loud on a genuine outage. Without these, ioredis
+          // retries forever with an unbounded queue of pending commands,
+          // which can exhaust the heap instead of surfacing the problem.
+          maxRetriesPerRequest: Number(
+            config.get<string>('REDIS_MAX_RETRIES_PER_REQUEST') ?? 3,
+          ),
+          // Cap the reconnect backoff instead of growing it without limit,
+          // and stop retrying the initial connect after a bounded number of
+          // attempts so startup surfaces a clear error.
+          retryStrategy: (times: number) => {
+            const maxAttempts = Number(
+              config.get<string>('REDIS_MAX_RECONNECT_ATTEMPTS') ?? 10,
+            );
+            if (times > maxAttempts) return null;
+            return Math.min(times * 500, 5_000);
+          },
+          // Surface command errors rather than buffering them indefinitely
+          // while the connection is down.
+          enableOfflineQueue: false,
+        },
+      }),
     }),
     PrismaModule,
     AuthModule,

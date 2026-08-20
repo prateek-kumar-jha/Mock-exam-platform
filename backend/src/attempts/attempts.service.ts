@@ -2,10 +2,19 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { SaveAnswerDto } from './dto/save-answer.dto';
+import {
+  ATTEMPTS_QUEUE,
+  AUTO_SUBMIT_JOB,
+  autoSubmitJobId,
+  type AutoSubmitJobData,
+} from './attempts.queue';
 
 /** Marks awarded per outcome, read from a test's marking_scheme JSON. */
 type MarkingScheme = {
@@ -29,7 +38,55 @@ type MarkingScheme = {
  */
 @Injectable()
 export class AttemptsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(AttemptsService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    @InjectQueue(ATTEMPTS_QUEUE) private attemptsQueue: Queue<AutoSubmitJobData>,
+  ) {}
+
+  /**
+   * Schedules the offline auto-submit safety net for an attempt.
+   *
+   * The on-access path handles a student who reconnects; this covers the one
+   * who never comes back (01-PRD.md §3.1: "auto-submit on time expiry, even if
+   * the client is offline"). Whichever fires first wins — finalizeAttempt's
+   * conditional write makes the loser a no-op.
+   *
+   * A queue outage must never block a student from starting a test, so a
+   * failure here is logged rather than thrown.
+   */
+  private async scheduleAutoSubmit(attemptId: string, deadline: Date) {
+    const delay = Math.max(0, deadline.getTime() - Date.now());
+
+    try {
+      await this.attemptsQueue.add(
+        AUTO_SUBMIT_JOB,
+        { attemptId },
+        {
+          delay,
+          // Deterministic id: re-enqueuing for the same attempt is a no-op
+          // rather than a duplicate job.
+          jobId: autoSubmitJobId(attemptId),
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5_000 },
+          removeOnComplete: true,
+          // Keep failures around for inspection instead of silently dropping.
+          removeOnFail: false,
+        },
+      );
+    } catch (error) {
+      // Loud, but non-fatal: a student must never be blocked from starting a
+      // test by a queue outage. The on-access path still finalizes the attempt
+      // whenever they next touch it; only the offline safety net is lost, so
+      // this log line is the signal to investigate.
+      this.logger.error(
+        `Failed to schedule auto-submit for attempt ${attemptId} — ` +
+          `offline auto-submit will NOT fire for this attempt`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
+  }
 
   /** Deadline is derived, never persisted, so it can't drift from started_at. */
   private deadlineFor(startedAt: Date, durationMinutes: number): Date {
@@ -62,7 +119,7 @@ export class AttemptsService {
    * test's full question list (not just saved answers) so skipped questions
    * are counted as unattempted rather than ignored.
    */
-  private async finalizeAttempt(
+  async finalizeAttempt(
     attemptId: string,
     status: 'submitted' | 'auto_submitted',
     submittedAt: Date,
@@ -111,9 +168,17 @@ export class AttemptsService {
       incorrect * scheme.incorrect +
       unattempted * scheme.unattempted;
 
-    const updated = await this.prisma.attempt.update({
-      where: { id: attemptId },
+    // Conditional write: only an attempt still in_progress is finalized. This
+    // is what makes the operation idempotent and safe to race — if the
+    // on-access path (or a manual submit) already finished this attempt, the
+    // updateMany matches zero rows and the existing score is left untouched.
+    const written = await this.prisma.attempt.updateMany({
+      where: { id: attemptId, status: 'in_progress' },
       data: { status, submitted_at: submittedAt, total_score: total },
+    });
+
+    const updated = await this.prisma.attempt.findUniqueOrThrow({
+      where: { id: attemptId },
       select: { id: true, status: true, submitted_at: true, total_score: true },
     });
 
@@ -122,6 +187,8 @@ export class AttemptsService {
       status: updated.status,
       submitted_at: updated.submitted_at,
       total_score: updated.total_score ? updated.total_score.toNumber() : 0,
+      /** False when another path had already finalized this attempt. */
+      applied: written.count > 0,
       breakdown: {
         correct,
         incorrect,
@@ -212,12 +279,21 @@ export class AttemptsService {
     });
 
     if (existing) {
+      const deadline = this.deadlineFor(
+        existing.started_at,
+        test.duration_minutes,
+      );
+      // Re-scheduling is safe: the deterministic job id means this reuses the
+      // job already queued at first start rather than adding another. It also
+      // restores the job if Redis lost it while the attempt was open.
+      await this.scheduleAutoSubmit(existing.id, deadline);
+
       return {
         attempt_id: existing.id,
         test_id: test.id,
         started_at: existing.started_at,
         duration_minutes: test.duration_minutes,
-        deadline: this.deadlineFor(existing.started_at, test.duration_minutes),
+        deadline,
         resumed: true,
       };
     }
@@ -233,12 +309,18 @@ export class AttemptsService {
       select: { id: true, started_at: true },
     });
 
+    const deadline = this.deadlineFor(
+      attempt.started_at,
+      test.duration_minutes,
+    );
+    await this.scheduleAutoSubmit(attempt.id, deadline);
+
     return {
       attempt_id: attempt.id,
       test_id: test.id,
       started_at: attempt.started_at,
       duration_minutes: test.duration_minutes,
-      deadline: this.deadlineFor(attempt.started_at, test.duration_minutes),
+      deadline,
       resumed: false,
     };
   }
